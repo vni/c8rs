@@ -377,7 +377,7 @@ fn main() {
                 }
 
                 draw_frame_buffer(&chip);
-                std::thread::sleep(std::time::Duration::from_millis(500));
+                std::thread::sleep(std::time::Duration::from_millis(5));
 
                 // TODO: Add bit collision detection (VF)
 
@@ -460,7 +460,7 @@ fn main() {
                 }
                 chip.index += (x + 1) as u16;
             }
-            _ => panic!("unimplemented: {}", op),
+            _ => panic!("unimplemented: {:04x}", op),
         }
 
         chip.pc += 2;
