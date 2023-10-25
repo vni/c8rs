@@ -84,6 +84,7 @@ fn wait_key_press() -> u8 {
         std::io::stdin()
             .read_to_string(&mut input)
             .expect("failed to read digits");
+        let input = input.trim();
         let res = input.parse::<u8>();
         if res.is_err() {
             println!("failed to parse your input");
