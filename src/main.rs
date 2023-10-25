@@ -1,3 +1,6 @@
+mod chip8_disasm;
+mod ui;
+
 use rand::Rng;
 use std::io::Read;
 use std::io::Write;
@@ -27,7 +30,7 @@ static KEYBOARD: [bool; 16] = [
     false, false, false,
 ];
 
-struct Chip8 {
+pub struct Chip8 {
     regs: [u8; 16],
     index: u16,
     pc: u16,
@@ -39,7 +42,7 @@ struct Chip8 {
     memory: [u8; 4096],
 }
 
-fn draw_frame_buffer(chip: &Chip8) {
+/* fn draw_frame_buffer(chip: &Chip8) {
     for row in 0..32 {
         for col in (0..64).rev() {
             if chip.frame_buffer[row] & (1 << col) != 0 {
@@ -50,7 +53,7 @@ fn draw_frame_buffer(chip: &Chip8) {
         }
         println!();
     }
-}
+} */
 
 fn nnn(a: u8, b: u8, c: u8) -> u16 {
     (a as u16) << 8 | (b as u16) << 4 | (c as u16)
@@ -107,19 +110,6 @@ fn trace(s: &str) {
     println!("{s}");
 }
 
-fn print_state(chip: &Chip8) {
-    println!(
-        ", PC: {:04x}, SP: {:04x}, I: {:04x}",
-        chip.pc, chip.sp, chip.index
-    );
-    print!("REGS:");
-    for r in chip.regs {
-        print!(" {:04x}", r);
-    }
-    println!();
-    println!();
-}
-
 fn main() {
     let mut rng = rand::thread_rng();
 
@@ -128,6 +118,10 @@ fn main() {
     // draw_frame_buffer(&chip);
 
     let args: Vec<String> = std::env::args().collect();
+    if args.len() == 3 && args[1] == "--disasm" {
+        chip8_disasm::chip8_disasm_main(&args[2]);
+        return;
+    }
     if args.len() != 2 {
         eprintln!("Expect 1 argument: a rom filename to run");
         std::process::exit(1);
@@ -174,6 +168,8 @@ fn main() {
 
     chip.pc = 0x200;
 
+    let term = ui::Terminal::new();
+
     loop {
         /*
         if chip.pc as usize >= opcodes.len() {
@@ -181,17 +177,12 @@ fn main() {
         }
         */
 
-        /*
-        let op: u16 = opcodes[chip.pc as usize];
-        */
-        // print!("chip.pc: {}, ", chip.pc);
         let op: u16 = (chip.memory[chip.pc as usize] as u16) << 8
             | chip.memory[(chip.pc + 1) as usize] as u16;
-        // chip.pc += 2; // moved after match
 
         print!("op: {:04x}", op);
         // println!("===========================================================");
-        print_state(&chip);
+        ui::Terminal::print_state(&chip);
         // println!();
 
         let a: u8 = ((op & 0xf000) >> 12) as u8;
@@ -349,27 +340,27 @@ fn main() {
 
                 let n = n;
 
-                println!("Draw at (x: {x}, y: {y})");
-                println!("chip.index: {}", chip.index);
+                // println!("Draw at (x: {x}, y: {y})");
+                // println!("chip.index: {}", chip.index);
                 // println!("<< BEFORE >> chip.framebuffer: ");
                 // draw_frame_buffer(&chip);
 
                 if x > 55 {
-                    println!("Draw instruction. DXYN. TODO: Add wraparound.");
+                    eprintln!("Draw instruction. DXYN. TODO: Add wraparound.");
                 }
 
                 for i in 0..n {
                     let mut byte: u64 = chip.memory[chip.index as usize + i as usize] as u64;
-                    println!("byte: {}", byte);
-                    println!("x: {}", x);
-                    println!("y: {}", y);
-                    println!("byte shift: {}", (64 - x - 8));
+                    // println!("byte: {}", byte);
+                    // println!("x: {}", x);
+                    // println!("y: {}", y);
+                    // println!("byte shift: {}", (64 - x - 8));
                     let mut byte_shift = 64 - x - 8;
                     if byte_shift < 0 {
                         byte_shift = -byte_shift;
                         byte >>= byte_shift;
 
-                        println!("Draw instruction. DXYN. TODO: Add wraparound.");
+                        eprintln!("Draw instruction. DXYN. TODO: Add wraparound.");
                     } else {
                         byte <<= byte_shift;
                     }
@@ -377,7 +368,7 @@ fn main() {
                     // println!("draw byte: 0x{:02x}", byte);
                 }
 
-                draw_frame_buffer(&chip);
+                ui::Terminal::draw_frame_buffer(&chip);
                 std::thread::sleep(std::time::Duration::from_millis(5));
 
                 // TODO: Add bit collision detection (VF)
@@ -466,5 +457,5 @@ fn main() {
 
         chip.pc += 2;
     }
-    //println!("Finished");
+    // println!("Finished");
 }
