@@ -1,3 +1,4 @@
+- [ ] add support for status register vf
 - [ ] find and add roms for chip8 to test vm and disassembler
 - [ ] make the disassembler understand every instruction
 - [ ] make the vm understand every instruction
