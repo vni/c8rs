@@ -75,6 +75,7 @@ impl Chip8 {
     /// auxiliary function used for debug purposes
     /// prints the first 512 (0x200) bytes of memory
     /// which are expected to zeroed and populated with font
+    #[allow(dead_code)]
     fn print_bios(&self) {
         println!("first 512 (0x200) bytes of memory:");
         for i in 0..512 {
@@ -367,6 +368,12 @@ impl Chip8 {
         }
 
         chip.pc += 2;
+    }
+
+    pub fn process_instructions(&mut self) {
+        loop {
+            self.process_instruction();
+        }
     }
 
     fn key_pressed(key: u8) -> bool {
