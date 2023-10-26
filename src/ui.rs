@@ -1,63 +1,62 @@
-/*
-use crossterm::{
-    event, execute,
-    style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
-    ExecutableCommand,
-};
-*/
+// /*
+// use crossterm::{
+//     event, execute,
+//     style::{Color, Print, ResetColor, SetBackgroundColor, SetForegroundColor},
+//     ExecutableCommand,
+// };
+// */
+// use vm::Chip8;
+// // use crossterm::QueueableCommand;
+// use std::io::Write;
 
-use crate::Chip8;
-// use crossterm::QueueableCommand;
-use std::io::Write;
+// pub struct Terminal;
 
-pub struct Terminal;
+// impl Terminal {
+//     pub fn new() {
+//         // crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen).unwrap();
+//         // crossterm::terminal::enable_raw_mode().expect("failed to enter raw mode");
+//     }
 
-impl Terminal {
-    pub fn new() {
-        crossterm::execute!(std::io::stdout(), crossterm::terminal::EnterAlternateScreen).unwrap();
-        crossterm::terminal::enable_raw_mode().expect("failed to enter raw mode");
-    }
+//     pub fn print_state(chip: &Chip8, op: &u16) {
+//         crossterm::cursor::MoveTo(0, 0);
+//         println!(
+//             "op: {:04x}, PC: {:04x}, SP: {:04x}, I: {:04x}",
+//             op, chip.pc, chip.sp, chip.index
+//         );
+//         print!("REGS:");
+//         for r in chip.regs {
+//             print!(" {:04x}", r);
+//         }
+//     }
 
-    pub fn print_state(chip: &Chip8) {
-        crossterm::cursor::MoveTo(0, 0);
-        println!(
-            ", PC: {:04x}, SP: {:04x}, I: {:04x}",
-            chip.pc, chip.sp, chip.index
-        );
-        print!("REGS:");
-        for r in chip.regs {
-            print!(" {:04x}", r);
-        }
-    }
+//     pub fn draw_frame_buffer(chip: &Chip8) {
+//         let mut stdout = std::io::stdout().lock();
+//         crossterm::execute!(stdout, crossterm::cursor::MoveTo(0, 4)).unwrap();
+//         for row in 0..32 {
+//             for col in (0..64).rev() {
+//                 if chip.frame_buffer[row] & (1 << col) != 0 {
+//                     crossterm::execute!(
+//                         stdout,
+//                         crossterm::style::SetBackgroundColor(crossterm::style::Color::Yellow)
+//                     )
+//                     .unwrap();
+//                     write!(stdout, "  ").unwrap();
+//                     crossterm::execute!(std::io::stdout(), crossterm::style::ResetColor).unwrap();
+//                 } else {
+//                     print!("  ");
+//                 }
+//             }
+//             println!();
+//         }
+//     }
+// }
 
-    pub fn draw_frame_buffer(chip: &Chip8) {
-        let mut stdout = std::io::stdout().lock();
-        crossterm::execute!(stdout, crossterm::cursor::MoveTo(0, 4)).unwrap();
-        for row in 0..32 {
-            for col in (0..64).rev() {
-                if chip.frame_buffer[row] & (1 << col) != 0 {
-                    crossterm::execute!(
-                        stdout,
-                        crossterm::style::SetBackgroundColor(crossterm::style::Color::Yellow)
-                    )
-                    .unwrap();
-                    write!(stdout, "  ").unwrap();
-                    crossterm::execute!(std::io::stdout(), crossterm::style::ResetColor).unwrap();
-                } else {
-                    print!("  ");
-                }
-            }
-            println!();
-        }
-    }
-}
-
-impl Drop for Terminal {
-    fn drop(&mut self) {
-        crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).unwrap();
-        crossterm::terminal::disable_raw_mode().expect("failed to disable raw mode");
-    }
-}
+// impl Drop for Terminal {
+//     fn drop(&mut self) {
+//         // crossterm::execute!(std::io::stdout(), crossterm::terminal::LeaveAlternateScreen).unwrap();
+//         // crossterm::terminal::disable_raw_mode().expect("failed to disable raw mode");
+//     }
+// }
 
 // use minifb::{Key, Scale, Window, WindowOptions};
 // const CELL_SIZE: usize = 10;
