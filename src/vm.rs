@@ -31,6 +31,7 @@ static KEYBOARD: [bool; 16] = [
     false, false, false, false,
 ];
 
+#[derive(PartialEq, Debug)]
 pub struct Chip8 {
     regs: [u8; 16],
     index: u16,
@@ -439,3 +440,44 @@ fn byte(a: u8, b: u8) -> u8 {
 }
 
 // TODO: FIXME: Add 60Hz timer.
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn check_0x7XNN_add() {
+        let mut chip8 = Chip8::new();
+
+        let instructions: &[u8] = &[
+            0x60, 0x20, // ld  v0, 0x20
+            0x70, 0x40, // add v0, 0x40
+            0x62, 0x90, // ld  v2, 0x90
+            0x80, 0x24, // add v0, v2
+        ];
+
+        // populate instructions
+        chip8.load_rom(instructions);
+
+        let mut expected = Chip8::new();
+        expected.regs[0] = 0xF0;
+        expected.regs[2] = 0x90;
+
+        chip8.process_instruction();
+        assert_eq!(chip8.regs[0], 0x20);
+
+        chip8.process_instruction();
+        assert_eq!(chip8.regs[0], 0x60);
+
+        chip8.process_instruction();
+        assert_eq!(chip8.regs[0], 0x60);
+        assert_eq!(chip8.regs[2], 0x90);
+
+        chip8.process_instruction();
+        assert_eq!(chip8.regs[0], 0xF0);
+        assert_eq!(chip8.regs[2], 0x90);
+
+        assert_eq!(chip8.regs, expected.regs);
+    }
+}
