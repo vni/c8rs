@@ -8,5 +8,7 @@
 - [ ] add support for other chip8 alternatives (super-chip, chip48, ...)
 
 - [ ] all the available memory to the vm should be in 4096 bytes (including lower 512 bytes for 'bios', display memory and stack)
-      - [ ] make the display to be in memory[0xF00 - 0xFFFF] (256 bytes) instead being a separate memory
+      - [ ] make the display to be in memory[0xF00 - 0xFFF] (256 bytes) instead being a separate memory
       - [ ] make the stack to be in memory[0xEA0 - 0xEFF] (96 bytes) instead of being a separate memory
+
+- [ ] use .rustfmt config instead of #[rustfmt::skip] in code
