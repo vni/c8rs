@@ -211,11 +211,10 @@ impl Chip8 {
                 self.regs[x as usize] = self.regs[x as usize].wrapping_sub(self.regs[y as usize]);
                 // FIXME: address substraction with borrow. (wrapping_sub ??)
             }
-            // SHR Vx {, Vy};  0x8XY6 => vx >>= vy, vf := old least significant bit
-            (8, x, _y, 6) => {
-                self.regs[0xf] = self.regs[x as usize] & 1;
-                //self.regs[x] >>= self.regs[y];
-                self.regs[x as usize] >>= 1;
+            // SHR Vx, Vy;  0x8XY6 => Vx = Vy >> 1, Vf := old least significant bit of Vy
+            (8, x, y, 6) => {
+                self.regs[0xf] = self.regs[y as usize] & 1;
+                self.regs[x as usize] = self.regs[y as usize] >> 1;
             }
             // SUBN Vx, Vy;  0x8XY7 => vx =- vy, vf := NOT BORROW BIT
             (8, x, y, 7) => {
@@ -228,15 +227,14 @@ impl Chip8 {
                 self.regs[x as usize] = self.regs[y as usize] - self.regs[x as usize];
                 // FIXME: address substraction with borrow. (wrapping_sub??)
             }
-            // SHL Vx {, Vy};  0x8XYE => vx <<= vy, vf := old most significant bit of Vx
-            (8, x, _y, 0xe) => {
-                if self.regs[x as usize] & 0x80 > 0 {
+            // SHL Vx, Vy;  0x8XYE => Vx = Vy << 1, Vf := old most significant bit of Vy
+            (8, x, y, 0xe) => {
+                if self.regs[y as usize] & 0x80 > 0 {
                     self.regs[0xf] = 1;
                 } else {
                     self.regs[0xf] = 0;
                 }
-                //self.regs[x] <<= self.regs[y]
-                self.regs[x as usize] <<= 1;
+                self.regs[x as usize] = self.regs[y as usize] << 1;
             }
             // SNE Vx, Vy;  0x9XY0 => if vx != vy then skip next instruction,
             (9, x, y, 0) => {
@@ -512,11 +510,11 @@ fn byte(a: u8, b: u8) -> u8 {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use crate::vm::*;
 
     #[test]
     #[allow(non_snake_case)]
-    fn check_0x7XNN_add() {
+    fn test_0x7XNN_add() {
         let mut chip8 = Chip8::new();
 
         let instructions: &[u8] = &[
@@ -548,5 +546,69 @@ mod tests {
         assert_eq!(chip8.regs[2], 0x90);
 
         assert_eq!(chip8.regs, expected.regs);
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_0x8XY6_shr() {
+        let mut chip8 = Chip8::new();
+        let instructions: &[u8] = &[
+            0x63, 0x92, // ld v3, 0x92 ; this one is just to test v3 afterwards
+            0x64, 0x55, // ld v4, 0x55
+            0x83, 0x46, // shr v3, v4
+        ];
+
+        chip8.load_rom(&instructions);
+
+        chip8.process_instruction(); // ld v3, 0x92
+        assert_eq!(chip8.regs[3], 0x92);
+        assert_eq!(chip8.regs[0xf], 0);
+
+        chip8.process_instruction(); // ld v4, 0x55
+        assert_eq!(chip8.regs[4], 0x55);
+        assert_eq!(chip8.regs[0xf], 0);
+
+        chip8.process_instruction(); // shr v3, v4
+        assert_eq!(chip8.regs[4], 0x55);
+        assert_eq!(chip8.regs[3], 0x55u8 >> 1);
+        assert_eq!(chip8.regs[0xf], 1);
+    }
+
+    #[test]
+    #[allow(non_snake_case)]
+    fn test_0x8XYe_shl() {
+        let mut chip8 = Chip8::new();
+        let instructions: &[u8] = &[
+            0x63, 0x92, // ld  v3, 0x92 ; this one is just to test v3 afterwards
+            0x64, 0x80, // ld  v4, 0x80
+            0x83, 0x4e, // shl v3, v4
+            0x64, 0x7a, // ld  v4, 0x7a
+            0x83, 0x4e, // shl v3, v4
+        ];
+
+        chip8.load_rom(&instructions);
+
+        chip8.process_instruction(); // ld v3, 0x92
+        assert_eq!(chip8.regs[3], 0x92);
+        assert_eq!(chip8.regs[0xf], 0);
+
+        chip8.process_instruction(); // ld v4, 0x80
+        assert_eq!(chip8.regs[4], 0x80);
+        assert_eq!(chip8.regs[0xf], 0);
+
+        chip8.process_instruction(); // shl v3, v4
+        assert_eq!(chip8.regs[4], 0x80);
+        assert_eq!(chip8.regs[3], 0);
+        assert_eq!(chip8.regs[0xf], 1);
+
+        chip8.process_instruction(); // ld v4, 0x7a
+        assert_eq!(chip8.regs[4], 0x7a);
+        assert_eq!(chip8.regs[3], 0);
+        assert_eq!(chip8.regs[0xf], 1);
+
+        chip8.process_instruction(); // shl v3, v4
+        assert_eq!(chip8.regs[4], 0x7a);
+        assert_eq!(chip8.regs[3], 0x7au8 << 1);
+        assert_eq!(chip8.regs[0xf], 0);
     }
 }
