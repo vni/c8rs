@@ -5,8 +5,8 @@ use std::io::Write;
 
 // start of the VideoMemory (256 bytes)
 const VIDEO_MEMORY_OFFSET: usize = 0xF00;
-const DISPLAY_HEIGHT: usize = 32;
-const DISPLAY_WIDTH: usize = 64;
+pub const DISPLAY_HEIGHT: usize = 32;
+pub const DISPLAY_WIDTH: usize = 64;
 const DISPLAY_WIDTH_IN_BYTES: usize = DISPLAY_WIDTH / 8;
 
 // chip8 font, 4x5
@@ -96,10 +96,24 @@ impl Chip8 {
         }
     }
 
+    fn print_state(&self) {
+        print!("[");
+        for i in 0..16 {
+            print!(" {:02x}", self.regs[i]);
+        }
+        print!(
+            " ] PC: {:04x}, SP: {:04x}, I: {:04x}",
+            self.pc, self.sp, self.index
+        );
+        println!();
+    }
+
     pub fn process_instruction(&mut self) {
+        self.print_state();
+
         let op: u16 = (self.memory[self.pc as usize] as u16) << 8
             | self.memory[(self.pc + 1) as usize] as u16;
-        print!("op: {:04x} pc: {:04x}/{} ", op, self.pc, self.pc);
+        print!("{:04x}: {:04x} ", self.pc, op);
         crate::disasm::disasm_inst(op);
         self.pc += 2;
 
@@ -158,7 +172,7 @@ impl Chip8 {
             }
             // ADD Vx, byte;  0x7XNN => vx += NN, //ADD Vx, byte
             (7, x, a, b) => {
-                let _ = self.regs[x as usize].wrapping_add(byte(a, b));
+                self.regs[x as usize] = self.regs[x as usize].wrapping_add(byte(a, b));
             }
             // LD Vx, Vy;  0x8XY0 => vx := vy, //copy?, mov
             (8, x, y, 0) => {
@@ -186,15 +200,15 @@ impl Chip8 {
                     self.regs[0xf] = 0;
                 }
             }
-            // SUB Vx, By;  0x8XY5 => vx -= vy, vf := NOT BORROW BIT
+            // SUB Vx, Vy;  0x8XY5 => vx -= vy, vf := NOT BORROW BIT
             (8, x, y, 5) => {
-                if self.regs[x as usize] > self.regs[y as usize] {
+                if self.regs[x as usize] >= self.regs[y as usize] {
                     self.regs[0xf] = 1;
                 } else {
                     self.regs[0xf] = 0;
                 }
 
-                self.regs[x as usize] -= self.regs[y as usize];
+                self.regs[x as usize] = self.regs[x as usize].wrapping_sub(self.regs[y as usize]);
                 // FIXME: address substraction with borrow. (wrapping_sub ??)
             }
             // SHR Vx {, Vy};  0x8XY6 => vx >>= vy, vf := old least significant bit
@@ -328,10 +342,12 @@ impl Chip8 {
     }
 
     pub fn process_instructions(&mut self) {
+        let mut w = crate::window::create_window();
+
         let mut counter = 0;
         loop {
             self.process_instruction();
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::thread::sleep(std::time::Duration::from_millis(50));
 
             if counter == 100 {
                 counter = 0;
@@ -340,6 +356,10 @@ impl Chip8 {
                 }
             }
             counter += 1;
+
+            let db = self.get_display_buffer();
+            w.update_with_buffer(&db, DISPLAY_WIDTH, DISPLAY_HEIGHT)
+                .expect("failed to update window");
         }
     }
 
@@ -375,6 +395,24 @@ impl Chip8 {
         }
     }
 
+    // TODO: FIXME: get rid of Vec allocation
+    fn get_display_buffer(&self) -> Vec<u32> {
+        let mut v = Vec::with_capacity(DISPLAY_WIDTH * DISPLAY_HEIGHT);
+        for x in 0..DISPLAY_WIDTH_IN_BYTES * DISPLAY_HEIGHT {
+            let b = self.memory[VIDEO_MEMORY_OFFSET + x];
+            let mut mask = 0x80u8;
+            while mask > 0 {
+                if b & mask > 0 {
+                    v.push(0x00AAAA00u32);
+                } else {
+                    v.push(0x00000000u32);
+                }
+                mask >>= 1;
+            }
+        }
+        v
+    }
+
     // DRW Vx, Vy, nibble;  0xDXYN => sprite vx vy N, //vf = 1 on collision
     // Draws a sprite at coordinate (VX, VY) that has a width of 8 pixels and
     // a height of N pixels. Each row of 8 pixels is read as bit-coded starting
@@ -383,18 +421,32 @@ impl Chip8 {
     // are flipped from set to unset when the sprite is drawn, and to 0 if that
     // does not happen.
     fn drw(&mut self, x: u8, y: u8, n: u8) {
-        println!("Draw at (x: {x}, y: {y})");
-        println!("self.index: 0x{:02x}/{}", self.index, self.index);
+        // println!("Draw at (x: {x}, y: {y}), self.index: 0x{:02x}/{}", self.index, self.index);
+        // println!("self.index: 0x{:02x}/{}", self.index, self.index);
 
         let mut vf = 0; // 1 - if any pixel flipped from set to unset when the sprite is drawn
                         // 0 - otherwise
         let x = self.regs[x as usize] % 64; // TODO: add optional wrap-around X
         let y = self.regs[y as usize] % 32; // TODO: add optional wrap-around y
 
+        /* for i in 0..n as usize {
+            let sprite_byte = self.memory[self.index as usize + i];
+            let byte_offset = x / 8;
+            let bit_offset = x % 8;
+            let mut mask = 0x80;
+            while mask > 0 {
+                if sprite_byte & mask > 0 {
+                    xor_bit();
+                }
+                mask >>= 1;
+            }
+        } */
+
         let rem = x % 8;
         for i in 0..n as usize {
             let mut byte_offset =
-                VIDEO_MEMORY_OFFSET + (y as usize + i) * DISPLAY_WIDTH_IN_BYTES + x as usize;
+                VIDEO_MEMORY_OFFSET + y as usize * DISPLAY_WIDTH_IN_BYTES + x as usize;
+            // println!("byte_offset: {}, x: {}, y: {}, i: {}", byte_offset, x, y, i);
             let display_byte = self.memory[byte_offset];
             let sprite_byte = self.memory[self.index as usize + i] >> rem;
             self.memory[byte_offset] = display_byte ^ sprite_byte;
@@ -416,8 +468,8 @@ impl Chip8 {
         }
 
         self.regs[0xf] = vf;
-        std::thread::sleep(std::time::Duration::from_millis(50));
-        self.draw_frame_buffer();
+        // std::thread::sleep(std::time::Duration::from_millis(50));
+        // self.draw_frame_buffer();
     }
 
     fn draw_frame_buffer(&self) {

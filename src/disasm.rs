@@ -2,26 +2,48 @@ use std::io::Read;
 
 pub fn chip8_disasm_main(filename: &str) {
     let mut buf: [u8; 4096] = [0; 4096];
+    let mut n_read: usize = 0;
 
     let mut f = std::fs::File::open(filename).expect("failed to open a file");
     loop {
+        // todo: check the code here: it should be correct even in case of multiple reads.
         let n = f
-            .read(&mut buf)
+            .read(&mut buf[n_read..])
             .expect("failed to read bytes from input file");
         if n == 0 {
             break;
         }
+        n_read += n;
 
-        disasm(&buf);
+        disasm(&buf[..n_read]);
     }
 }
 
 fn disasm(mut buf: &[u8]) {
+    let mut offset: u16 = 0x200;
     while buf.len() > 2 {
         let opcode = (buf[0] as u16) << 8 | buf[1] as u16;
+        draw_bit_pattern(&opcode);
+        print!("{:04x}: ", offset);
+        print!(" {:04x}: ", opcode);
         disasm_inst(opcode);
         buf = &buf[2..];
+        offset += 2;
     }
+}
+
+fn draw_bit_pattern(opcode: &u16) {
+    print!("[");
+    let mut mask = 0x8000;
+    while mask > 0 {
+        if mask & opcode > 0 {
+            print!("##");
+        } else {
+            print!("  ");
+        }
+        mask >>= 1;
+    }
+    print!("] ");
 }
 
 fn create_nn(n1: u16, n2: u16) -> u16 {

@@ -1,6 +1,7 @@
 mod disasm;
 // mod ui;
 mod vm;
+mod window;
 
 fn main() {
     let args: Vec<String> = std::env::args().collect();

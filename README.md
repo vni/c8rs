@@ -24,3 +24,11 @@ https://itch.io/jam/octojam-7
   * chip8 - the original one
   * xo-chip8
   * chip48
+
+
+## Awesome CHIP-8
+https://project-awesome.org/tobiasvl/awesome-chip-8
+
+
+## CHIP‐8 Instruction Set
+https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Instruction-Set
