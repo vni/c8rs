@@ -1,5 +1,5 @@
 mod disasm;
-mod ui;
+// mod ui;
 mod vm;
 
 fn main() {
@@ -14,9 +14,9 @@ fn main() {
     }
 
     let rom: Vec<u8> = std::fs::read(&args[1]).expect("failed to read rom file");
-    if rom.len() % 2 == 1 {
-        panic!("The rom.len() ({}) is not even", rom.len());
-    }
+    // if rom.len() % 2 == 1 {
+    //     panic!("The rom.len() ({}) is not even", rom.len());
+    // }
 
     let mut chip = vm::Chip8::new();
     chip.load_rom(&rom);
