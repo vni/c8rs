@@ -117,224 +117,298 @@ impl Chip8 {
         crate::disasm::disasm_inst(op);
         self.pc += 2;
 
-        // ui::Terminal::print_state(&self, &op);
+        const VF: usize = 0xf;
 
-        let a: u8 = ((op & 0xf000) >> 12) as u8;
-        let b: u8 = ((op & 0x0f00) >> 8) as u8;
-        let c: u8 = ((op & 0x00f0) >> 4) as u8;
-        let d: u8 = (op & 0x000f) as u8;
+        match op >> 12 {
+            0x0 => {
+                match op {
+                    0x00e0 => {
+                        // CLS: clear the display
+                        for i in 0xF00..=0xFFF {
+                            self.memory[i] = 0u8;
+                        }
+                    }
 
-        match (a, b, c, d) {
-            // CLS: clear the display
-            (0, 0, 0xE, 0) => {
-                for i in 0xF00..=0xFFF {
-                    self.memory[i] = 0u8;
+                    0x00ee => {
+                        // RET: return
+                        self.pc = self.stack[self.sp as usize];
+                        self.sp -= 1; // FIXME: check for underflow
+                    }
+
+                    _ => {
+                        // SYS addr;  obsolete
+                        unimplemented!("`SYS addr` instruction is obsolete");
+                    }
                 }
             }
-            // RET: return
-            (0, 0, 0xE, 0xE) => {
-                self.pc = self.stack[self.sp as usize];
-                self.sp -= 1; // FIXME: check for underflow
+
+            0x1 => {
+                // 0x1NNN jump NNN
+                self.pc = op & 0x0fff;
             }
-            // SYS addr;  obsolete
-            (0, _, _, _) => unimplemented!("`SYS addr` instruction is obsolete"),
-            //jump NNN,
-            (1, a, b, c) => {
-                self.pc = addr(a, b, c);
-            }
-            //call NNN
-            (2, a, b, c) => {
+
+            0x2 => {
+                // 0x2NNN call NNN
                 self.sp += 1;
                 self.stack[self.sp as usize] = self.pc;
-                self.pc = addr(a, b, c);
+                self.pc = op & 0x0fff;
             }
-            //SE Vx, byte; if vx == kk => skip next instruction
-            (3, x, a, b) => {
-                if self.regs[x as usize] == byte(a, b) {
-                    self.pc += 2;
-                }
-            }
-            //SNE Vx, byte; if vx != kk => skip next instruction
-            (4, x, a, b) => {
-                if self.regs[x as usize] != byte(a, b) {
-                    self.pc += 2;
-                }
-            }
-            //SE Vx, Vy;  0x5XY0 => if vx == vy => skip next instruction
-            (5, x, y, 0) => {
-                if self.regs[x as usize] == self.regs[y as usize] {
-                    self.pc += 2;
-                }
-            }
-            // LD Vx, byte;  0x6XNN => vx := NN, //mov imm
-            (6, x, a, b) => {
-                self.regs[x as usize] = byte(a, b);
-            }
-            // ADD Vx, byte;  0x7XNN => vx += NN, //ADD Vx, byte
-            (7, x, a, b) => {
-                self.regs[x as usize] = self.regs[x as usize].wrapping_add(byte(a, b));
-            }
-            // LD Vx, Vy;  0x8XY0 => vx := vy, //copy?, mov
-            (8, x, y, 0) => {
-                self.regs[x as usize] = self.regs[y as usize];
-            }
-            // OR Vx, Vy;  0x8XY1 => vx |= vy, //bit OR
-            (8, x, y, 1) => {
-                self.regs[x as usize] |= self.regs[y as usize];
-            }
-            // AND Vx, Vy;  0x8XY2 => vx &= vy, //bit AND
-            (8, x, y, 2) => {
-                self.regs[x as usize] &= self.regs[y as usize];
-            }
-            // XOR Vx, Vy;  0x8XY3 => vx ^= vy, //bit XOR
-            (8, x, y, 3) => {
-                self.regs[x as usize] ^= self.regs[y as usize];
-            }
-            // ADD Vx, Vy;  0x8XY4 => vx += vy, vf := CARRY BIT
-            (8, x, y, 4) => {
-                let result: u16 = self.regs[x as usize] as u16 + self.regs[y as usize] as u16;
-                self.regs[x as usize] = (result & 0x00ff) as u8;
-                if result > 0xff {
-                    self.regs[0xf] = 1;
-                } else {
-                    self.regs[0xf] = 0;
-                }
-            }
-            // SUB Vx, Vy;  0x8XY5 => vx -= vy, vf := NOT BORROW BIT
-            (8, x, y, 5) => {
-                if self.regs[x as usize] >= self.regs[y as usize] {
-                    self.regs[0xf] = 1;
-                } else {
-                    self.regs[0xf] = 0;
-                }
 
-                self.regs[x as usize] = self.regs[x as usize].wrapping_sub(self.regs[y as usize]);
-                // FIXME: address substraction with borrow. (wrapping_sub ??)
-            }
-            // SHR Vx, Vy;  0x8XY6 => Vx = Vy >> 1, Vf := old least significant bit of Vy
-            (8, x, y, 6) => {
-                self.regs[0xf] = self.regs[y as usize] & 1;
-                self.regs[x as usize] = self.regs[y as usize] >> 1;
-            }
-            // SUBN Vx, Vy;  0x8XY7 => vx =- vy, vf := NOT BORROW BIT
-            (8, x, y, 7) => {
-                if self.regs[y as usize] > self.regs[x as usize] {
-                    self.regs[0xfusize] = 1;
-                } else {
-                    self.regs[0xfusize] = 0;
-                }
-
-                self.regs[x as usize] = self.regs[y as usize] - self.regs[x as usize];
-                // FIXME: address substraction with borrow. (wrapping_sub??)
-            }
-            // SHL Vx, Vy;  0x8XYE => Vx = Vy << 1, Vf := old most significant bit of Vy
-            (8, x, y, 0xe) => {
-                if self.regs[y as usize] & 0x80 > 0 {
-                    self.regs[0xf] = 1;
-                } else {
-                    self.regs[0xf] = 0;
-                }
-                self.regs[x as usize] = self.regs[y as usize] << 1;
-            }
-            // SNE Vx, Vy;  0x9XY0 => if vx != vy then skip next instruction,
-            (9, x, y, 0) => {
-                if self.regs[x as usize] != self.regs[y as usize] {
+            0x3 => {
+                // 0x3XNN SE Vx, byte; if vx == kk => skip next instruction
+                let x: usize = (op as usize >> 8) & 0xf;
+                let nn: u8 = (op & 0xff) as u8;
+                if self.regs[x] == nn {
                     self.pc += 2;
                 }
             }
-            // LD I, addr;  0xANNN => i := NNN, // assign to index 16bit register
-            (0xa, _a, _b, _c) => {
-                // self.index = addr(a, b, c);
+
+            0x4 => {
+                // 0x4XNN SNE Vx, byte; if vx != kk => skip next instruction
+                let x: usize = (op as usize >> 8) & 0xf;
+                let nn: u8 = (op & 0xff) as u8;
+                if self.regs[x] != nn {
+                    self.pc += 2;
+                }
+            }
+
+            0x5 => {
+                // 0x5XY0 SE Vx, Vy;  0x5XY0 => if vx == vy => skip next instruction
+                let x: usize = (op as usize >> 8) & 0xf;
+                let y: usize = (op as usize >> 4) & 0xf;
+                if self.regs[x] == self.regs[y] {
+                    self.pc += 2;
+                }
+            }
+
+            0x6 => {
+                // 0x6XNN ld vx, nn
+                let x: usize = (op as usize >> 8) & 0xf;
+                let nn: u8 = (op & 0xff) as u8;
+                self.regs[x] = nn;
+            }
+
+            0x7 => {
+                // 0x7XNN add vx, nn
+                let x: usize = (op as usize >> 8) & 0xf;
+                let nn: u8 = (op & 0xff) as u8;
+                self.regs[x] = self.regs[x].wrapping_add(nn);
+            }
+
+            0x8 => {
+                let x: usize = (op as usize >> 8) & 0xf;
+                let y: usize = (op as usize >> 4) & 0xf;
+
+                match op & 0xf {
+                    0x0 => {
+                        // 0x8XY0 ld Vx, Vy // vx := vy //copy?, mov
+                        self.regs[x] = self.regs[y];
+                    }
+
+                    0x1 => {
+                        // 0x8XY1 or Vx, Vy; // vx |= vy //bit OR
+                        self.regs[x] |= self.regs[y];
+                    }
+
+                    0x2 => {
+                        // 0x8XY2 and Vx, Vy // vx &= vy //bit AND
+                        self.regs[x as usize] &= self.regs[y as usize];
+                    }
+
+                    0x3 => {
+                        // 0x8XY3 xor Vx, Vy // vx ^= vy //bit XOR
+                        self.regs[x] ^= self.regs[y];
+                    }
+
+                    0x4 => {
+                        // 0x8XY4 add Vx, Vy // vx += vy, vf := carry_bit
+                        let result: u16 = self.regs[x] as u16 + self.regs[y] as u16;
+                        self.regs[x] = result as u8;
+                        if result > 0xff {
+                            self.regs[VF] = 1;
+                        } else {
+                            self.regs[VF] = 0;
+                        }
+                    }
+
+                    0x5 => {
+                        // 0x8XY5 sub Vx, Vy // vx -= vy, vf := not_borrow_bit
+                        if self.regs[x] >= self.regs[y] {
+                            self.regs[VF] = 1;
+                        } else {
+                            self.regs[VF] = 0;
+                        }
+
+                        self.regs[x] = self.regs[x].wrapping_sub(self.regs[y]);
+                        // FIXME: TODO: check the logic
+                    }
+
+                    0x6 => {
+                        // 0x8XY6 shr Vx, Vy // Vx = Vy >> 1, Vf := old least significant bit of Vy
+                        self.regs[VF] = self.regs[y] & 1;
+                        self.regs[x] = self.regs[y] >> 1;
+                    }
+
+                    0x7 => {
+                        // 0x8XY7 subn Vx, Vy // vx =- vy, vf := not_borrow_bit
+                        if self.regs[y] > self.regs[x] {
+                            self.regs[VF] = 1;
+                        } else {
+                            self.regs[VF] = 0;
+                        }
+
+                        self.regs[x as usize] = self.regs[y as usize] - self.regs[x as usize];
+                        // FIXME: address substraction with borrow. (wrapping_sub??)
+                    }
+
+                    0xE => {
+                        // 0x8XYE shl Vx, Vy // Vx = Vy << 1, Vf := old most significant bit of Vy
+                        if self.regs[y] & 0x80 > 0 {
+                            self.regs[VF] = 1;
+                        } else {
+                            self.regs[VF] = 0;
+                        }
+                        self.regs[x] = self.regs[y] << 1;
+                    }
+
+                    _ => unimplemented!("{:04x} sub instruction of 0x8XY.. is not implemented", op),
+                }
+            }
+
+            0x9 => {
+                // 0x9XY0 SNE Vx, Vy;  0x9XY0 => if vx != vy then skip next instruction
+                let x: usize = (op as usize >> 8) & 0xf;
+                let y: usize = (op as usize >> 4) & 0xf;
+                if self.regs[x] != self.regs[y] {
+                    self.pc += 2;
+                }
+            }
+
+            0xA => {
+                // 0xANNN ld I, nnn // assign to index 16bit register
                 self.index = op & 0x0fff;
             }
-            // JP V0, addr;  0xBNNN => jump0 NNN, // jump to address NNN + v0
-            (0xb, _a, _b, _c) => {
-                // self.pc = self.regs[0] as u16 + addr(a, b, c);
+
+            0xB => {
+                // 0xBNNN jmp0 nnn // jump to address v0 + NNN
                 self.pc = self.regs[0] as u16 + op & 0x0fff;
             }
-            // RND Vx, byte;  0xCXNN => vx := random NN, // random number 0-255 AND NN
-            (0xc, x, _a, _b) => {
-                self.regs[x as usize] = rand::thread_rng().gen::<u8>() & op as u8;
-                println!("RND & {:02x}: {}", op as u8, self.regs[x as usize]);
-                // byte(a, b);
+
+            0xC => {
+                // 0xCXNN rnd Vx, nn // random(0, 255) && nn
+                let x: usize = (op as usize >> 8) & 0xf;
+                self.regs[x] = rand::thread_rng().gen::<u8>() & (op as u8);
+                println!("RND & {:02x}: {}", op as u8, self.regs[x]);
                 // TODO: check that rand::thread_rng() is cheap
             }
-            // DRW Vx, Vy, nibble;  0xDXYN => sprite vx vy N, //vf = 1 on collision
-            (0xd, x, y, n) => {
+
+            0xD => {
+                // 0xDXYN drw vx, vy, nibble // sprite vx vy N, // vf = 1 on collision
+                let x: u8 = ((op >> 8) & 0xf) as u8;
+                let y: u8 = ((op >> 4) & 0xf) as u8;
+                let n: u8 = (op & 0xf) as u8;
+
                 self.drw(x, y, n);
             }
-            // SKP Vx;  0xEX9E => if vx -key then, //is a key not pressed?
-            (0xe, x, 9, 0xe) => {
-                if Chip8::key_pressed(self.regs[x as usize]) {
-                    self.pc += 2;
-                }
-            }
-            // SKNP Vx;  0xEXA1 => if vx key then, //is a key pressed?
-            (0xe, x, 0xa, 1) => {
-                if !Chip8::key_pressed(self.regs[x as usize]) {
-                    self.pc += 2;
-                }
-            }
-            // LD Vx, DT;  0xFX07 => vx := delay
-            (0xf, x, 0, 7) => {
-                self.regs[x as usize] = self.delay_timer;
-            }
-            // LD Vx, K;  0xFX0A => vx := key, //wait for a keypress
-            (0xf, x, 0, 0xa) => {
-                self.regs[x as usize] = Chip8::wait_key_press();
-            }
-            // LD DT, Vx;  0xFX15 => delay := vx,
-            (0xf, x, 1, 5) => {
-                self.delay_timer = self.regs[x as usize];
-            }
-            // LD ST, Vx;  0xFX18 => buzzer := vx,
-            (0xf, x, 1, 8) => {
-                self.sound_timer = self.regs[x as usize];
-            }
-            // ADD I, Vx;  0xFX1E => i += vx, //index += vx
-            (0xf, x, 1, 0xe) => {
-                self.index += self.regs[x as usize] as u16;
-            }
-            // LD F, Vx;  0xFX29 => i := hex vx, //set i to a hex character
-            (0xf, x, 2, 9) => {
-                let mut char_index = self.regs[x as usize];
-                if char_index > 15 {
-                    // TODO
-                    eprintln!(
-                        "TODO. THERE IS NOT BITMAP FONT FOR char_index > 15. char_index: {}",
-                        char_index
-                    );
-                    // continue;
-                    char_index %= 16;
-                }
-                self.index = char_index as u16 * 5; // the font is 4 bytes for 1 char
-                println!("Fx29: new chip.index: {}", self.index);
-                // unimplemented!();
-            }
-            // LD B, Vx;  0xFX33 => bcd vx, //decode vx into binary-coded decimal
-            (0xf, x, 3, 3) => {
-                let hundreds = self.regs[x as usize] / 100;
-                let tens = (self.regs[x as usize] % 100) / 10;
-                let ones = self.regs[x as usize] % 10;
 
-                self.memory[self.index as usize] = hundreds;
-                self.memory[(self.index + 1) as usize] = tens;
-                self.memory[(self.index + 2) as usize] = ones;
-            }
-            // LD [I], Vx;  0xFX55 => save vx, //save v0-vx to i through (i+x)
-            (0xf, x, 5, 5) => {
-                for i in 0..=x {
-                    self.memory[(self.index + i as u16) as usize] = self.regs[i as usize];
+            0xE => {
+                let x: usize = (op as usize >> 8) & 0xf;
+
+                match op & 0xff {
+                    0x9E => {
+                        // 0xEX9E skp Vx, K // if vx -key then // is key pressed?
+                        if Chip8::key_pressed(self.regs[x]) {
+                            self.pc += 2;
+                        }
+                    }
+
+                    0xA1 => {
+                        // 0xEXA1 sknp Vx, K // if vx key then // is key not pressed?
+                        if !Chip8::key_pressed(self.regs[x]) {
+                            self.pc += 2;
+                        }
+                    }
+
+                    _ => unimplemented!("{:04x} subinstruction of 0xEX.. is not implemented", op),
                 }
-                self.index += (x + 1) as u16;
             }
-            // LD Vx, [I];  0xFX65 => load vx, //load v0-vx from i through (i+x)
-            (0xf, x, 6, 5) => {
-                for i in 0..=x {
-                    self.regs[i as usize] = self.memory[(self.index + i as u16) as usize];
+
+            0xF => {
+                let x: usize = (op as usize >> 8) & 0xf;
+
+                match op & 0xff {
+                    0x07 => {
+                        // 0xFX07 ld Vx, dt // vx := delay
+                        self.regs[x] = self.delay_timer;
+                    }
+
+                    0x0A => {
+                        // 0xFX0A ld Vx, K // vx := key //wait for a keypress
+                        self.regs[x] = Chip8::wait_key_press();
+                    }
+
+                    0x15 => {
+                        // 0xFX15 ld dt, Vx // delay := vx
+                        self.delay_timer = self.regs[x];
+                    }
+
+                    0x18 => {
+                        // 0xFX18 ld st, Vx // buzzer := vx
+                        self.sound_timer = self.regs[x];
+                    }
+
+                    0x1E => {
+                        // 0xFX1E add I, Vx // i += vx //index += vx
+                        self.index += self.regs[x] as u16;
+                    }
+
+                    0x29 => {
+                        // 0xFX29 ld F, Vx // i := hex vx //set i to a hex character
+                        let mut char_index = self.regs[x];
+                        if char_index > 15 {
+                            // TODO
+                            eprintln!(
+                                "TODO. THERE IS NOT BITMAP FONT FOR char_index > 15. char_index: {}",
+                                char_index
+                            );
+                            // continue;
+                            char_index %= 16;
+                        }
+                        self.index = char_index as u16 * 5; // the font is 5 bytes toll for 1 char
+                        println!("Fx29: new chip.index: {}", self.index);
+                    }
+
+                    0x33 => {
+                        // 0xFX33 bcd vx // decode vx into binary-coded decimal
+                        let hundreds = self.regs[x] / 100;
+                        let tens = (self.regs[x] % 100) / 10;
+                        let ones = self.regs[x] % 10;
+
+                        self.memory[self.index as usize] = hundreds;
+                        self.memory[(self.index + 1) as usize] = tens;
+                        self.memory[(self.index + 2) as usize] = ones;
+                    }
+
+                    0x55 => {
+                        // 0xFX55 LD [I], Vx // save vx //save v0-vx to i through (i+x)
+                        for i in 0..=x {
+                            self.memory[(self.index + i as u16) as usize] = self.regs[i as usize];
+                        }
+                        self.index += (x + 1) as u16;
+                    }
+
+                    0x65 => {
+                        // 0xFX65 ld Vx, [I] // load vx //load v0-vx from i through (i+x)
+                        for i in 0..=x {
+                            self.regs[i as usize] = self.memory[(self.index + i as u16) as usize];
+                        }
+                        self.index += (x + 1) as u16;
+                    }
+
+                    _ => unimplemented!("{:04x} sub instruction of 0xFX.. is not implemented", op),
                 }
-                self.index += (x + 1) as u16;
             }
+
             _ => panic!("unimplemented: {:04x}", op),
         }
     }
@@ -488,22 +562,6 @@ impl Chip8 {
             println!();
         }
     }
-}
-
-fn nnn(a: u8, b: u8, c: u8) -> u16 {
-    (a as u16) << 8 | (b as u16) << 4 | (c as u16)
-}
-
-fn addr(a: u8, b: u8, c: u8) -> u16 {
-    nnn(a, b, c)
-}
-
-fn kk(a: u8, b: u8) -> u8 {
-    (a << 4) | b
-}
-
-fn byte(a: u8, b: u8) -> u8 {
-    kk(a, b)
 }
 
 // TODO: FIXME: Add 60Hz timer.
