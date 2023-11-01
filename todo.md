@@ -12,3 +12,11 @@
       - [ ] make the stack to be in memory[0xEA0 - 0xEFF] (96 bytes) instead of being a separate memory
 
 - [ ] use .rustfmt config instead of #[rustfmt::skip] in code
+
+- [ ] chip8 frequency
+      add [optional] opcode execution latency
+- [ ] add keyboard input (key pressed, key released updates)
+- [ ] add 60 (30?) FPS window updating?
+- [ ] add Delay Timer functionality
+- [ ] move stack into the 'main' memory
+- [ ] fix drawing subroutine

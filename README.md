@@ -30,5 +30,10 @@ https://itch.io/jam/octojam-7
 https://project-awesome.org/tobiasvl/awesome-chip-8
 
 
-## CHIP‐8 Instruction Set
+## mattmikolay chip-8 wiki
+
+#### CHIP‐8 Instruction Set
 https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Instruction-Set
+
+#### CHIP-8 variaties
+https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Extensions-Reference
