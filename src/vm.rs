@@ -42,12 +42,12 @@ pub struct Chip8 {
     regs: [u8; 16],
     index: u16,
     pc: u16,
-    sp: u8,
-    stack: [u16; 16], //??32 // TODO: should be part of the memory // 0xEA0
-    sound_timer: u8,  // buzzes while activated. Decreases at 60Hz. When 0 -> deactivates.
-    delay_timer: u8,  // decreases till 0 at rate of 60Hz. When it 0 -> stops.
-    // frame_buffer: [u64; 32], // TODO: Should be part of the memory
+    sp: u16,
+    sound_timer: u8, // buzzes while activated. Decreases at 60Hz. When 0 -> deactivates.
+    delay_timer: u8, // decreases till 0 at rate of 60Hz. When it 0 -> stops.
     memory: [u8; 4096],
+
+    halt: bool,
 }
 
 impl Chip8 {
@@ -56,12 +56,11 @@ impl Chip8 {
             regs: [0u8; 16],
             index: 0,
             pc: 0x200,
-            sp: 0,
-            stack: [0u16; 16], // TODO: move it to memory[]
+            sp: 0xEA0, // 0xFA0 ??
             sound_timer: 0,
             delay_timer: 0,
-            // frame_buffer: [0u64; 32], // TODO: move it to memory[]
             memory: [0u8; 4096],
+            halt: false,
         };
 
         // setup 'bios': set font to the memory addresses 0 .. 0x200
@@ -131,8 +130,10 @@ impl Chip8 {
 
                     0x00ee => {
                         // RET: return
-                        self.pc = self.stack[self.sp as usize];
-                        self.sp -= 1; // FIXME: check for underflow
+                        debug_assert_eq!(self.sp & 1, 0);
+                        self.sp -= 2; // FIXME: check for underflow
+                        self.pc = (self.memory[self.sp as usize] as u16) << 8
+                            | self.memory[self.sp as usize + 1] as u16;
                     }
 
                     _ => {
@@ -144,13 +145,19 @@ impl Chip8 {
 
             0x1 => {
                 // 0x1NNN jump NNN
+                // check for halt instruction
+                if (self.pc - 2) == (op & 0x0fff) {
+                    self.halt = true;
+                }
                 self.pc = op & 0x0fff;
             }
 
             0x2 => {
                 // 0x2NNN call NNN
-                self.sp += 1;
-                self.stack[self.sp as usize] = self.pc;
+                debug_assert_eq!(self.sp & 1, 0);
+                self.memory[self.sp as usize] = (self.pc >> 8) as u8;
+                self.memory[self.sp as usize + 1] = self.pc as u8;
+                self.sp += 2;
                 self.pc = op & 0x0fff;
             }
 
@@ -417,7 +424,7 @@ impl Chip8 {
         let mut w = crate::window::create_window();
 
         let mut counter = 0;
-        loop {
+        while self.halt == false {
             self.process_instruction();
             std::thread::sleep(std::time::Duration::from_millis(50));
 
