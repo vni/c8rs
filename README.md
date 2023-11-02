@@ -37,3 +37,12 @@ https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Instruction-Set
 
 #### CHIP-8 variaties
 https://github.com/mattmikolay/chip-8/wiki/CHIP%E2%80%908-Extensions-Reference
+
+##
+https://www.gamebrew.org/wiki/Chip8me
+
+## laurencescotford blog posts about chip8
+https://www.laurencescotford.net/2020/07/25/chip-8-on-the-cosmac-vip-index/
+
+## Appendix C - CHIP-8 Interpreter in some old manual
+https://archive.org/details/bitsavers_rcacosmacCManual1978_6956559/page/n35/mode/2up
