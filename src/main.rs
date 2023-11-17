@@ -1,3 +1,4 @@
+mod asm;
 mod disasm;
 // mod ui;
 mod vm;
