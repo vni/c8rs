@@ -230,24 +230,15 @@ impl Chip8 {
                     0x4 => {
                         // 0x8XY4 add Vx, Vy // vx += vy, vf := carry_bit
                         let result: u16 = self.regs[x] as u16 + self.regs[y] as u16;
+                        self.regs[VF] = (result >> 8) as u8;
                         self.regs[x] = result as u8;
-                        if result > 0xff {
-                            self.regs[VF] = 1;
-                        } else {
-                            self.regs[VF] = 0;
-                        }
                     }
 
                     0x5 => {
                         // 0x8XY5 sub Vx, Vy // vx -= vy, vf := not_borrow_bit
-                        if self.regs[x] >= self.regs[y] {
-                            self.regs[VF] = 1;
-                        } else {
-                            self.regs[VF] = 0;
-                        }
-
-                        self.regs[x] = self.regs[x].wrapping_sub(self.regs[y]);
-                        // FIXME: TODO: check the logic
+                        let result: u16 = (0x0100 | (self.regs[x] as u16)) - (self.regs[y] as u16);
+                        self.regs[VF] = (result >> 8) as u8;
+                        self.regs[x] = (result & 0xff) as u8;
                     }
 
                     0x6 => {
@@ -257,24 +248,15 @@ impl Chip8 {
                     }
 
                     0x7 => {
-                        // 0x8XY7 subn Vx, Vy // vx =- vy, vf := not_borrow_bit
-                        if self.regs[y] > self.regs[x] {
-                            self.regs[VF] = 1;
-                        } else {
-                            self.regs[VF] = 0;
-                        }
-
-                        self.regs[x as usize] = self.regs[y as usize] - self.regs[x as usize];
-                        // FIXME: address substraction with borrow. (wrapping_sub??)
+                        // 0x8XY7 subn Vx, Vy // vx =- vy, vf := not_borrow_bit // vx = vy - vx
+                        let result: u16 = (0x0100 | (self.regs[y] as u16)) - (self.regs[x] as u16);
+                        self.regs[VF] = (result >> 8) as u8;
+                        self.regs[x] = (result & 0xff) as u8;
                     }
 
                     0xE => {
                         // 0x8XYE shl Vx, Vy // Vx = Vy << 1, Vf := old most significant bit of Vy
-                        if self.regs[y] & 0x80 > 0 {
-                            self.regs[VF] = 1;
-                        } else {
-                            self.regs[VF] = 0;
-                        }
+                        self.regs[VF] = (self.regs[VF] >> 7) & 1;
                         self.regs[x] = self.regs[y] << 1;
                     }
 
@@ -503,8 +485,14 @@ impl Chip8 {
         // println!("Draw at (x: {x}, y: {y}), self.index: 0x{:02x}/{}", self.index, self.index);
         // println!("self.index: 0x{:02x}/{}", self.index, self.index);
 
-        let mut vf = 0; // 1 - if any pixel flipped from set to unset when the sprite is drawn
-                        // 0 - otherwise
+        // let mut vf = 0; // 1 - if any pixel flipped from set to unset when the sprite is drawn
+        // 0 - otherwise
+
+        self.regs[0xf] = 0;
+
+        debug_assert!(x < 64);
+        debug_assert!(y < 32);
+
         let x = self.regs[x as usize] % 64; // TODO: add optional wrap-around X
         let y = self.regs[y as usize] % 32; // TODO: add optional wrap-around y
 
@@ -521,7 +509,34 @@ impl Chip8 {
             }
         } */
 
-        let rem = x % 8;
+        let mut bitline: u64 = 0;
+        let start: usize = VIDEO_MEMORY_OFFSET + y as usize + DISPLAY_WIDTH_IN_BYTES;
+        for i in 0..8 {
+            bitline <<= 8;
+            bitline |= self.memory[start + i] as u64;
+        }
+
+        let mut sprite: u64 = self.memory[self.index as usize] as u64;
+        // if sprite goes of the screen to the right
+        if x as usize > (DISPLAY_WIDTH - 8) {
+            sprite >>= DISPLAY_WIDTH - (DISPLAY_WIDTH - 8);
+        } else {
+            sprite <<= DISPLAY_WIDTH - 8 - x as usize;
+        }
+
+        let vf = bitline & sprite;
+        if vf > 0 {
+            self.regs[0xf] = 1;
+        }
+
+        bitline ^= sprite;
+
+        for i in 0..8 {
+            self.memory[start + i] = ((bitline >> 56) & 0xff) as u8;
+            bitline <<= 8;
+        }
+
+        /* let rem = x % 8;
         for i in 0..n as usize {
             let mut byte_offset =
                 VIDEO_MEMORY_OFFSET + y as usize * DISPLAY_WIDTH_IN_BYTES + x as usize;
@@ -544,9 +559,9 @@ impl Chip8 {
                     vf = 1;
                 }
             }
-        }
+        } */
 
-        self.regs[0xf] = vf;
+        // self.regs[0xf] = vf;
         // std::thread::sleep(std::time::Duration::from_millis(50));
         // self.draw_frame_buffer();
     }
